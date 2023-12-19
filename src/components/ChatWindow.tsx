@@ -103,6 +103,7 @@ export const ChatWindow: React.FC = () => {
             unlisten.then(dispose => dispose());
         };
     }, []);
+    const containerRef = useRef<HTMLDivElement>(null)
 
 
     const scrollToBottom = () => {
@@ -166,9 +167,44 @@ export const ChatWindow: React.FC = () => {
             handleSubmit().catch(e => console.error(e))
     }, [inputValue]);
 
+
+    const [hasScrollbar, setHasScrollbar] = useState(false);
+    useEffect(() => {
+        if (hasScrollbar) return;
+        const container = containerRef.current;
+
+        // Check if the container has a vertical scrollbar
+        const checkScrollbar = () => {
+            if (container) {
+                setHasScrollbar(container.scrollHeight > container.clientHeight);
+            }
+        };
+
+        // Call checkScrollbar whenever the container is updated
+        checkScrollbar();
+
+        // Event listener for checking when the content changes
+        const handleContentChange = () => {
+            checkScrollbar();
+        };
+
+        if (container) {
+            container.addEventListener('DOMSubtreeModified', handleContentChange);
+        }
+
+        return () => {
+            if (container) {
+                container.removeEventListener('DOMSubtreeModified', handleContentChange);
+            }
+        };
+    }, [hasScrollbar]);
+
     return (
-        <div className={classNames("container", {"faded-logo-background": !messages.length})} style={!messages.length ? {backgroundImage: `url("${logo}")`} : undefined}>
-            <div className="messages" >
+        <div ref={containerRef} className={classNames("container", {
+            "faded-logo-background": !messages.length,
+            "has-scrollbar": hasScrollbar
+        })} style={!messages.length ? {backgroundImage: `url("${logo}")`} : undefined}>
+            <div className="messages">
                 {messages.map(message => (
                     <div key={message.id} className={classNames("message", {
                         'sent': message.role === "user",

@@ -21,8 +21,12 @@ body {
     box-sizing: border-box;
     overflow-y: auto;
     height: calc(100vh - (var(--form-height)));
-    padding: 2rem calc(2rem - var(--scroll-bar-width)) 2rem 2rem;
+    padding: 2rem;
     margin: 0;
+}
+
+.container.has-scrollbar {
+    padding: 2rem calc(2rem - var(--scroll-bar-width)) 2rem 2rem;
 }
 
 .action-buttons {

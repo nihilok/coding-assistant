@@ -29,13 +29,17 @@ const CodeBlockComponent: React.FC<CodeComponentProps> = ({children, className, 
                 customStyle={{fontSize: "0.9rem"}}
             />
         </div>
-    ) : (
+    ) : codeString.length > 50 ? (
         <div className="code-container">
             <CopyCodeButton code={codeString}/>
-            <code>
+            <code className={className} {...rest}>
                 {children}
             </code>
         </div>
+    ) : (
+        <code className={className} {...rest}>
+            {children}
+        </code>
     );
 };
 export const MemoizedCodeBlock = React.memo(CodeBlockComponent)
