@@ -3,7 +3,7 @@ import React, {useCallback, useEffect, useRef, useState} from 'react';
 import classNames from 'classnames';
 import {invoke} from "@tauri-apps/api/tauri";
 import {dialog} from "@tauri-apps/api";
-import {UnlistenFn, listen, emit} from "@tauri-apps/api/event";
+import {emit, listen, UnlistenFn} from "@tauri-apps/api/event";
 import Markdown from "react-markdown";
 import {v4 as uuid4} from "uuid";
 
@@ -16,12 +16,9 @@ import {MaterialIcon} from "./MaterialIcon.tsx";
 
 // Assets
 import logo from "../assets/ca-logo.svg";
-
-interface Message {
-    id: string;
-    content: string;
-    role: "user" | "assistant" | "system";
-}
+import {useScrollToBottom} from "../hooks/useScrollToBottom.tsx";
+import {Message} from "../types";
+import {updateMessages} from "../helpers/messageStreaming.ts";
 
 function saveModelState(modelState: boolean) {
     localStorage.setItem("modelState", String(modelState));
@@ -37,7 +34,10 @@ function loadModelState() {
 
 
 function errorDialog(err: Error, action?: string) {
-    return dialog.message(`ERROR: ${err}${action ? " from " + action : ""} `, {title: "Error", type: "error"});
+    dialog.message(`ERROR: ${err}${action ? " from " + action : ""} `, {
+        title: "Error",
+        type: "error"
+    }).catch(err => console.error(`ERROR: updable to display dialog: ${err}`));
 }
 
 export const ChatWindow: React.FC = () => {
@@ -46,7 +46,6 @@ export const ChatWindow: React.FC = () => {
     const [isThinking, setIsThinking] = useState(false);
     const [resetKey, setResetKey] = useState(false)
     const [lowCost, setLowCost] = useState(loadModelState());
-    const messagesEndRef = useRef<null | HTMLDivElement>(null);
 
     const [messageQueue, setMessageQueue] = useState<string[]>([])
 
@@ -65,33 +64,13 @@ export const ChatWindow: React.FC = () => {
 
     useEffect(() => {
         const part = dequeueMessagePart();
-        if (!part) return;
-        let updatedMessages = [...messages]; // Clone the current messages array
-        let messageToUpdateIndex: number; // Index of the message we want to update
-
-        // Check if we have messages and the last one is from the assistant
-        if (updatedMessages.length > 0 && updatedMessages[updatedMessages.length - 1].role === "assistant") {
-            messageToUpdateIndex = updatedMessages.length - 1;
-        } else {
-            // If no messages or the last message is not from the assistant, create a new message
-            const newAssistantMessage: { id: string; role: "assistant"; content: string } = {
-                id: `${uuid4()}-assistant-message`,
-                role: "assistant",
-                content: "...", // We will later remove the ellipsis and append payload to this
-            };
-            updatedMessages.push(newAssistantMessage);
-            messageToUpdateIndex = updatedMessages.length - 1;
+        if (!part) {
+            return;
         }
 
-        // Now, append the payload to the message we have identified or created
-        updatedMessages[messageToUpdateIndex] = {
-            ...updatedMessages[messageToUpdateIndex],
-            content: updatedMessages[messageToUpdateIndex].content === "..." ? part : updatedMessages[messageToUpdateIndex].content + part,
-        };
-
-        // Finally, update the state with the new messages array
+        const updatedMessages = updateMessages(messages, part, "assistant");
         setMessages(updatedMessages);
-    }, [dequeueMessagePart]);
+    }, [dequeueMessagePart, messages]);
 
     const unlisten = useRef<Promise<UnlistenFn> | null>(null)
 
@@ -99,11 +78,15 @@ export const ChatWindow: React.FC = () => {
         return emit("cancel-stream");
     }
 
-    function stopListening() {
-        emitCancelStream();
-        return unlisten.current?.then(dispose => {
-            dispose()
-        })
+    async function stopListening() {
+        await emitCancelStream()
+        if (unlisten.current) {
+            const dispose = await unlisten.current;
+            dispose();
+        } else {
+            return async function () {
+            }
+        }
     }
 
     function startListening() {
@@ -115,27 +98,33 @@ export const ChatWindow: React.FC = () => {
         }
 
         if (unlisten.current) {
-            stopListening()?.then(start)
+            stopListening().then(start)
             return;
         }
         start();
     }
 
     useEffect(() => {
+        const errorListener = listen("stream-error", ({payload}) => {
+            errorDialog(payload as Error, "streamingMessage")
+        })
+        return () => {
+            errorListener.then(dispose => dispose())
+        }
+    }, []);
+
+    useEffect(() => {
         startListening()
         return () => {
-            stopListening()?.catch((e) => errorDialog(e, "chatMessageListener"))
+            stopListening().catch((e) => errorDialog(e, "chatMessageListener"))
         };
     }, []);
     const containerRef = useRef<HTMLDivElement>(null)
 
-
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({behavior: 'smooth'});
-    };
+    const bottom = useScrollToBottom(messages.length);
 
     async function getHistory() {
-        const history = await invoke("get") as { history: { role: string, content: string }[] };
+        const history = await invoke("get_history") as { history: { role: string, content: string }[] };
         setMessages(history.history.filter(h => h.role !== "system").map(h => ({
             id: `${uuid4()}-${h.role}-message`,
             content: h.content,
@@ -153,29 +142,28 @@ export const ChatWindow: React.FC = () => {
 
     const handleSubmit = useCallback(async (e?: React.FormEvent) => {
         e?.preventDefault();
-        if (inputValue.trim()) {
-            setResetKey(prev => !prev)
-            setInputValue('');
-            stopListening()?.then(() => {
-                setIsThinking(true)
-                const newMessage: Message = {
-                    id: `${uuid4()}-user-message`,
-                    content: inputValue,
-                    role: "user"
-                };
-                setMessages(prevMessages => [...prevMessages, newMessage]);
-                startListening();
-            }).then(() =>
-                invoke("prompt", {markdown: inputValue, lowCost}).catch(async (err) => {
-                    setIsThinking(false);
-                    await errorDialog(err, "submitRequest");
-                }))
+        if (!inputValue.trim()) {
+            return;
         }
-    }, [inputValue, messages]);
 
-    useEffect(() => {
-        scrollToBottom()
-    }, [messages.length]);
+        setResetKey(prev => !prev);
+        setInputValue('');
+
+        stopListening().then(() => {
+            setIsThinking(true);
+            const newMessage: Message = {
+                id: `${uuid4()}-user-message`,
+                content: inputValue,
+                role: "user"
+            };
+            setMessages(prevMessages => [...prevMessages, newMessage]);
+            startListening();
+        }).then(() =>
+            invoke("prompt", {markdown: inputValue, lowCost}).catch(async (err) => {
+                setIsThinking(false);
+                await errorDialog(err, "submitRequest");
+            }));
+    }, [inputValue, messages]);
 
     const newChat = useCallback(async () => {
         const confirmed = await dialog.confirm("Are you sure you want to clear the current chat?\n\nIt will be backed up to\n~/.coding-assistant-history", {
@@ -184,7 +172,7 @@ export const ChatWindow: React.FC = () => {
         });
         if (!confirmed) return;
         setIsThinking(false)
-        stopListening()?.then(() =>
+        stopListening().then(() =>
             invoke("clear_history").then(() => {
                 getHistory()
                 startListening();
@@ -255,7 +243,7 @@ export const ChatWindow: React.FC = () => {
                     </div>
                 ))}
                 {isThinking && <Loading/>}
-                <div ref={messagesEndRef}></div>
+                {bottom}
             </div>
 
             <form onSubmit={handleSubmit} autoCapitalize="none" autoCorrect="off" autoComplete="off">

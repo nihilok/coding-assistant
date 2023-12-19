@@ -1,5 +1,5 @@
+use crate::open_ai_funcs::SYSTEM_MESSAGE;
 use crate::structs::{History, Message, MyError, Role};
-use crate::{MAX_HISTORY_LENGTH, SYSTEM_MESSAGE};
 use chrono::Local;
 use serde_json::{from_reader, to_writer};
 use std::io::{BufReader, BufWriter};
@@ -26,6 +26,20 @@ pub fn write_history(history: &History) -> io::Result<()> {
     Ok(())
 }
 
+pub fn truncate_history(history: &mut History, length: usize) -> &mut History {
+    if history.history.len() > length {
+        history.history = history.history.split_off(history.history.len() - length);
+    }
+
+    // Check the first message when history is not empty; prepend a system message if needed
+    if history.history.is_empty() || history.history[0].role != Role::SYSTEM {
+        history
+            .history
+            .insert(0, Message::new(Role::SYSTEM, SYSTEM_MESSAGE));
+    };
+    history
+}
+
 pub fn read_history() -> io::Result<History> {
     let file = match fs::File::open(get_history_path()) {
         Ok(file) => file,
@@ -37,21 +51,8 @@ pub fn read_history() -> io::Result<History> {
     };
 
     let reader = BufReader::new(file);
-    let mut history: History =
+    let history: History =
         from_reader(reader).map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
-
-    if history.history.len() > MAX_HISTORY_LENGTH {
-        history.history = history
-            .history
-            .split_off(history.history.len() - MAX_HISTORY_LENGTH);
-    }
-
-    // Check the first message when history is not empty; prepend a system message if needed
-    if history.history.is_empty() || history.history[0].role != Role::SYSTEM {
-        history
-            .history
-            .insert(0, Message::new(Role::SYSTEM, SYSTEM_MESSAGE));
-    }
 
     Ok(history)
 }
@@ -82,6 +83,6 @@ pub fn clear_history() -> Result<(), MyError> {
 }
 
 #[tauri::command]
-pub async fn get() -> Result<History, ()> {
+pub async fn get_history() -> Result<History, ()> {
     Ok(read_history().unwrap_or(History::new()))
 }

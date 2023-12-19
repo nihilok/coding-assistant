@@ -1,4 +1,4 @@
-use crate::SYSTEM_MESSAGE;
+use crate::open_ai_funcs::SYSTEM_MESSAGE;
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::str::FromStr;

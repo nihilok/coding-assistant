@@ -79,7 +79,7 @@ export function CustomTextArea({setValue}: {
             // Check if the last two characters before the cursor are backticks
             if (beforeCursor === "``" || beforeCursor.endsWith('\n``')) {
                 event.preventDefault();
-                const newValue = `${beforeCursor}\`\n\n\`\`\`${afterCursor}`;
+                const newValue = `${beforeCursor}\`\n\`\`\`${afterCursor}`;
                 setInternalValue(newValue);
                 // Set the new cursor position to be after the newline and before the closing backticks
                 cursorPositionRef.current = cursorPos + 1; // +1 for the newline
@@ -117,8 +117,7 @@ export function CustomTextArea({setValue}: {
             setInternalValue(newValue);
 
             // Move the cursor after the newline and indentation.
-            const newCursorPosition = cursorPosition + indent.length + 1; // +1 for the newline character
-            cursorPositionRef.current = newCursorPosition;
+            cursorPositionRef.current = cursorPosition + indent.length + 1; // +1 for the newline character
         }
     };
 
