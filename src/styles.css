@@ -1,0 +1,120 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100..800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;700&display=swap');
+
+:root {
+  font-family: Ubuntu, Inter, Avenir, Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+
+  --text-colour: #0f0f0f;
+  --background-colour: #f6f6f6;
+  --link-colour: #646cff;
+  --highlight-colour: #535bf2;
+  --button-colour: #ffffff;
+  --lighter-bg: #595959;
+  --scroll-bar-width: 13px;
+
+  color: var(--text-colour);
+  background-color: var(--background-colour);
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Style the scrollbar overall */
+::-webkit-scrollbar {
+  width: var(--scroll-bar-width); /* width of the entire scrollbar */
+  height: var(--scroll-bar-width);
+}
+
+/* Style the scrollbar track */
+::-webkit-scrollbar-track {
+  background: var(--background-colour); /* color of the tracking area */
+}
+
+/* Handle */
+::-webkit-scrollbar-thumb {
+  background-color: var(--lighter-bg); /* color of the scroll thumb */
+  border-radius: 6px; /* roundness of the scroll thumb */
+  border: 3px solid var(--background-colour); /* creates padding around scroll thumb */
+}
+
+/* Styling scrollbars in Firefox */
+html {
+  scrollbar-width: thin; /* 'auto', 'thin', 'none' */
+  scrollbar-color: var(--lighter-bg) var(--background-colour); /* thumb and track colors */
+}
+
+a {
+  font-weight: 500;
+  color: var(--link-colour);
+  text-decoration: inherit;
+}
+
+a:hover {
+  color: var(--highlight-colour);
+}
+
+input,
+textarea,
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  color: #0f0f0f;
+  background-color: var(--button-colour);
+  transition: border-color 0.25s;
+  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
+}
+
+button {
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: #396cd8;
+}
+button:active {
+  border-color: #396cd8;
+  background-color: #e8e8e8;
+}
+
+input,
+textarea,
+button {
+  outline: none;
+}
+
+#greet-input {
+  margin-right: 5px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text-colour: #c0c0c0;
+    --background-colour: #2f2f2f;
+    --highlight-colour: #24c8db;
+    --button-colour:  #0f0f0f98;
+  }
+
+  input,
+  button {
+    color: #ffffff;
+    background-color: var(--button-colour);
+  }
+  button:active {
+    background-color: #0f0f0f69;
+  }
+}
+
+.material-symbols-rounded {
+  color: var(--text-colour);
+  font-size: 1em !important;
+}
