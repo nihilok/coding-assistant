@@ -535,6 +535,7 @@ dependencies = [
  "comrak",
  "dirs",
  "futures",
+ "lazy_static",
  "pin-utils",
  "serde",
  "serde_json",

@@ -80,3 +80,8 @@ pub fn clear_history() -> Result<(), MyError> {
 
     Ok(())
 }
+
+#[tauri::command]
+pub async fn get() -> Result<History, ()> {
+    Ok(read_history().unwrap_or(History::new()))
+}

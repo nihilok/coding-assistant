@@ -3,7 +3,7 @@ import React, {useCallback, useEffect, useRef, useState} from 'react';
 import classNames from 'classnames';
 import {invoke} from "@tauri-apps/api/tauri";
 import {dialog} from "@tauri-apps/api";
-import {listen} from "@tauri-apps/api/event";
+import {UnlistenFn, listen, emit} from "@tauri-apps/api/event";
 import Markdown from "react-markdown";
 import {v4 as uuid4} from "uuid";
 
@@ -74,7 +74,7 @@ export const ChatWindow: React.FC = () => {
             messageToUpdateIndex = updatedMessages.length - 1;
         } else {
             // If no messages or the last message is not from the assistant, create a new message
-            const newAssistantMessage: {id: string; role: "assistant"; content: string} = {
+            const newAssistantMessage: { id: string; role: "assistant"; content: string } = {
                 id: `${uuid4()}-assistant-message`,
                 role: "assistant",
                 content: "...", // We will later remove the ellipsis and append payload to this
@@ -86,21 +86,45 @@ export const ChatWindow: React.FC = () => {
         // Now, append the payload to the message we have identified or created
         updatedMessages[messageToUpdateIndex] = {
             ...updatedMessages[messageToUpdateIndex],
-            content: updatedMessages[messageToUpdateIndex].content === "..." ?  part : updatedMessages[messageToUpdateIndex].content + part,
+            content: updatedMessages[messageToUpdateIndex].content === "..." ? part : updatedMessages[messageToUpdateIndex].content + part,
         };
 
         // Finally, update the state with the new messages array
         setMessages(updatedMessages);
     }, [dequeueMessagePart]);
 
-    useEffect(() => {
-        const unlisten = listen("chat-message", ({ payload }) => {
-            setIsThinking(false);
-            enqueueMessagePart(payload as string);
-        });
+    const unlisten = useRef<Promise<UnlistenFn> | null>(null)
 
+    function emitCancelStream() {
+        return emit("cancel-stream");
+    }
+
+    function stopListening() {
+        emitCancelStream();
+        return unlisten.current?.then(dispose => {
+            dispose()
+        })
+    }
+
+    function startListening() {
+        function start() {
+            unlisten.current = listen("chat-message", ({payload}) => {
+                setIsThinking(false);
+                enqueueMessagePart(payload as string);
+            });
+        }
+
+        if (unlisten.current) {
+            stopListening()?.then(start)
+            return;
+        }
+        start();
+    }
+
+    useEffect(() => {
+        startListening()
         return () => {
-            unlisten.then(dispose => dispose());
+            stopListening()?.catch((e) => errorDialog(e, "chatMessageListener"))
         };
     }, []);
     const containerRef = useRef<HTMLDivElement>(null)
@@ -131,20 +155,21 @@ export const ChatWindow: React.FC = () => {
         e?.preventDefault();
         if (inputValue.trim()) {
             setResetKey(prev => !prev)
-            setIsThinking(true)
-            const newMessage: Message = {
-                id: `${uuid4()}-user-message`,
-                content: inputValue,
-                role: "user"
-            };
-            setMessages(prevMessages => [...prevMessages, newMessage]);
             setInputValue('');
-            invoke("prompt", {markdown: inputValue, lowCost}).then(() => {
-                setIsThinking(false);
-            }).catch(async (err) => {
-                setIsThinking(false);
-                await errorDialog(err, "submitRequest");
-            });
+            stopListening()?.then(() => {
+                setIsThinking(true)
+                const newMessage: Message = {
+                    id: `${uuid4()}-user-message`,
+                    content: inputValue,
+                    role: "user"
+                };
+                setMessages(prevMessages => [...prevMessages, newMessage]);
+                startListening();
+            }).then(() =>
+                invoke("prompt", {markdown: inputValue, lowCost}).catch(async (err) => {
+                    setIsThinking(false);
+                    await errorDialog(err, "submitRequest");
+                }))
         }
     }, [inputValue, messages]);
 
@@ -153,18 +178,25 @@ export const ChatWindow: React.FC = () => {
     }, [messages]);
 
     const newChat = useCallback(async () => {
-        const confirmed = await dialog.confirm("Are you sure you want to clear the current chat?\n\nIt will be backed up to\n~/.coding-assistant-history", {title: "Confirm", type: "warning"});
-        if (!confirmed) return;
-        invoke("clear_history").then(() => {
-            getHistory()
-        }).catch(async (error) => {
-            await errorDialog(error, "newChat");
+        const confirmed = await dialog.confirm("Are you sure you want to clear the current chat?\n\nIt will be backed up to\n~/.coding-assistant-history", {
+            title: "Confirm",
+            type: "warning"
         });
+        if (!confirmed) return;
+        setIsThinking(false)
+        stopListening()?.then(() =>
+            invoke("clear_history").then(() => {
+                getHistory()
+                startListening();
+                setHasScrollbar(false)
+            }).catch(async (error) => {
+                await errorDialog(error, "newChat");
+            }).finally(startListening))
     }, []);
 
     useEffect(() => {
         if (inputValue.trim().length)
-            handleSubmit().catch(e => console.error(e))
+            handleSubmit().catch(errorDialog)
     }, [inputValue]);
 
 
