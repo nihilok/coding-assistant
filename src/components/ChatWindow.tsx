@@ -175,7 +175,7 @@ export const ChatWindow: React.FC = () => {
 
     useEffect(() => {
         scrollToBottom()
-    }, [messages]);
+    }, [messages.length]);
 
     const newChat = useCallback(async () => {
         const confirmed = await dialog.confirm("Are you sure you want to clear the current chat?\n\nIt will be backed up to\n~/.coding-assistant-history", {
