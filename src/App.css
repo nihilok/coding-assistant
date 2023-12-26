@@ -245,3 +245,7 @@ p code {
         background-size: 80% 60vh;
     }
 }
+
+.highlight {
+    color: var(--highlight-colour) !important;
+}

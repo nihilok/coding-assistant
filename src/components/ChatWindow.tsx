@@ -256,7 +256,7 @@ export const ChatWindow: React.FC = () => {
                             if (lowCost) {
                                 dialog.message('Now using GPT4\n\nBeware of increased costs when using this model')
                             }
-                        }}><MaterialIcon icon="smart_toy"/>{lowCost ? "GPT 3" : "GPT 4"}</button>
+                        }}><MaterialIcon icon="smart_toy" className={classNames({highlight: !lowCost})}/>{lowCost ? "GPT 3" : "GPT 4"}</button>
                     </div>
                     {!!messages.length && <div className="top-right-actions">
                         <button onClick={newChat}><MaterialIcon icon="delete_sweep"/>New Session</button>
